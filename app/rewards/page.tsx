@@ -101,20 +101,26 @@ export default function RewardsPage() {
         await redeemReward(user.id, rewardId);
 
         // Create a new transaction record for redeeming the reward
-        await createTransaction(
-          user.id,
-          "redeemed",
-          reward.cost,
-          `Redeemed ${reward.name}`
-        );
+        const newTransaction: Transaction = {
+          id: Date.now(), // Optimistic ID, will be replaced on next fetch if needed
+          type: "redeemed",
+          amount: reward.cost,
+          description: `Redeemed ${reward.name}`,
+          date: new Date().toLocaleDateString(), // Simple date
+        };
 
-        // Refresh user data and rewards after redemption
-        await refreshUserData();
+        // Update state immediately
+        setBalance((prevBalance) => prevBalance - reward.cost);
+        setTransactions((prevTransactions) => [
+          newTransaction,
+          ...prevTransactions,
+        ]);
 
         toast.success(`You have successfully redeemed: ${reward.name}`);
       } catch (error) {
         console.error("Error redeeming reward:", error);
         toast.error("Failed to redeem reward. Please try again.");
+        // Optionally, revert state changes on error if you don't want optimistic updates
       } finally {
         setIsRedeeming(false); // Re-enable interactions
       }
@@ -141,46 +147,35 @@ export default function RewardsPage() {
       await redeemReward(user.id, 0);
 
       // Create a new transaction record for redeeming all points
-      await createTransaction(
-        user.id,
-        "redeemed",
-        balance,
-        "Redeemed all points"
-      );
+      const newTransaction: Transaction = {
+        id: Date.now(), // Optimistic ID
+        type: "redeemed",
+        amount: balance,
+        description: "Redeemed all points",
+        date: new Date().toLocaleDateString(), // Simple date
+      };
 
-      // Refresh user data and rewards after redemption
-      await refreshUserData();
+      // Update state immediately
+      setBalance(0);
+      setTransactions((prevTransactions) => [
+        newTransaction,
+        ...prevTransactions,
+      ]);
 
       toast.success(`You have successfully redeemed all your points!`);
     } catch (error) {
       console.error("Error redeeming all points:", error);
       toast.error("Failed to redeem all points. Please try again.");
+      // Optionally, revert state changes on error
     } finally {
       setIsRedeeming(false); // Re-enable interactions
     }
   };
 
-  const refreshUserData = async () => {
-    if (user) {
-      const fetchedUser = await getUserByEmail(user.email);
-      if (fetchedUser) {
-        const fetchedTransactions = await getRewardTransactions(fetchedUser.id);
-        setTransactions(fetchedTransactions as Transaction[]);
-        const fetchedRewards = await getAvailableRewards(fetchedUser.id);
-        setRewards(fetchedRewards.filter((r) => r.cost > 0)); // Filter out rewards with 0 points
-        // Recalculate balance
-        const calculatedBalance = fetchedTransactions.reduce(
-          (acc, transaction) => {
-            return transaction.type.startsWith("earned")
-              ? acc + transaction.amount
-              : acc - transaction.amount;
-          },
-          0
-        );
-        setBalance(Math.max(calculatedBalance, 0)); // Ensure balance is never negative
-      }
-    }
-  };
+  // We are now updating state directly in the handleRedeem functions,
+  // so refreshUserData is no longer strictly necessary for immediate UI updates.
+  // You might still call it in the background or on a timer to ensure data consistency.
+  // const refreshUserData = async () => { ... };
 
   if (loading) {
     return (
@@ -190,24 +185,8 @@ export default function RewardsPage() {
     );
   }
 
-  // Slice to show only the last 5 transactions, ensuring the "Redeemed all points" is the latest transaction
-  const recentTransactions = transactions
-    .filter(
-      (transaction) =>
-        transaction.type !== "redeemed" ||
-        transaction.description !== "Redeemed all points"
-    )
-    .slice(0, 5);
-
-  const allPointsRedeemedTransaction = transactions.find(
-    (transaction) =>
-      transaction.type === "redeemed" &&
-      transaction.description === "Redeemed all points"
-  );
-
-  if (allPointsRedeemedTransaction) {
-    recentTransactions.unshift(allPointsRedeemedTransaction); // Add it at the top of the list
-  }
+  // Slice to show only the last 5 transactions
+  const recentTransactions = transactions.slice(0, 5);
 
   return (
     <div className="p-8 max-w-4xl mx-auto">

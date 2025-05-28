@@ -13,6 +13,14 @@ type Reward = {
   userName: string | null;
 };
 
+type AggregatedUser = {
+  userId: number;
+  userName: string;
+  totalPoints: number;
+  level: number;
+  rewards: Reward[];
+};
+
 export default function LeaderboardPage() {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +29,7 @@ export default function LeaderboardPage() {
     email: string;
     name: string;
   } | null>(null);
+  const [sortedUsers, setSortedUsers] = useState<AggregatedUser[]>([]);
 
   useEffect(() => {
     const fetchRewardsAndUser = async () => {
@@ -49,40 +58,49 @@ export default function LeaderboardPage() {
     fetchRewardsAndUser();
   }, []);
 
-  // Group and sum points per user
-  const aggregatedUsers = rewards.reduce(
-    (acc, reward) => {
-      const existing = acc.find((u) => u.userId === reward.userId);
-      if (existing) {
-        existing.totalPoints += reward.points;
-        existing.rewards.push(reward);
-      } else {
-        acc.push({
-          userId: reward.userId,
-          userName: reward.userName || "Unknown",
-          totalPoints: reward.points,
-          level: reward.level,
-          rewards: [reward],
-        });
-      }
-      return acc;
-    },
-    [] as {
-      userId: number;
-      userName: string;
-      totalPoints: number;
-      level: number;
-      rewards: Reward[];
-    }[]
-  );
+  useEffect(() => {
+    if (!loading && rewards.length > 0) {
+      // Group and sum points per user
+      const aggregatedUsers = rewards.reduce((acc, reward) => {
+        const existing = acc.find((u) => u.userId === reward.userId);
+        if (existing) {
+          existing.totalPoints += reward.points;
+          existing.rewards.push(reward);
+        } else {
+          acc.push({
+            userId: reward.userId,
+            userName: reward.userName || "Unknown",
+            totalPoints: reward.points,
+            level: 0, // Initial level (will be determined later)
+            rewards: [reward],
+          });
+        }
+        return acc;
+      }, [] as AggregatedUser[]);
 
-  // Filter out users with zero points
-  const filteredUsers = aggregatedUsers.filter((user) => user.totalPoints > 0);
+      // Filter out users with zero points
+      const filteredUsers = aggregatedUsers.filter(
+        (user) => user.totalPoints > 0
+      );
 
-  // Sort the remaining users by total points
-  const sortedUsers = filteredUsers.sort(
-    (a, b) => b.totalPoints - a.totalPoints
-  );
+      // Sort users by total points in descending order
+      const sortedByPoints = [...filteredUsers].sort(
+        (a, b) => b.totalPoints - a.totalPoints
+      );
+
+      // Determine the highest point value
+      const highestPoints = sortedByPoints[0]?.totalPoints || 0;
+
+      // Assign levels based on the highest points
+      const usersWithLevels = sortedByPoints.map((user) => ({
+        ...user,
+        level: user.totalPoints === highestPoints ? 1 : 2, // Everyone else is Level 2 for this example
+        // You can add more complex leveling logic here if needed for users beyond the top one
+      }));
+
+      setSortedUsers(usersWithLevels);
+    }
+  }, [loading, rewards]);
 
   return (
     <div className="bg-white min-h-screen p-4">
@@ -172,7 +190,7 @@ export default function LeaderboardPage() {
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className="px-2 py-1 inline-flex text-sm font-semibold rounded-full bg-indigo-100 text-indigo-800">
-                            Level {entry.rewards[0]?.level ?? 1}
+                            Level {entry.level}
                           </span>
                         </td>
                       </tr>

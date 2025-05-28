@@ -49,7 +49,7 @@ export default function VerifyClothPage() {
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-8 text-gray-800">
-        Verify clothes Collection
+        Verify items Collection
       </h1>
 
       <form
@@ -61,14 +61,14 @@ export default function VerifyClothPage() {
             htmlFor="clothes-image"
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            Upload clothes Image
+            Upload items Image
           </label>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
             <div className="space-y-1 text-center">
               <Upload className="mx-auto h-12 w-12 text-gray-400" />
               <div className="flex text-sm text-gray-600">
                 <label
-                  htmlFor="clothes-image"
+                  htmlFor="items-image"
                   className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-green-500"
                 >
                   <span>Upload a file</span>
@@ -149,7 +149,7 @@ export default function VerifyClothPage() {
               </h3>
               <div className="mt-2 text-sm text-red-700">
                 <p>
-                  Unable to verify the clothes. Please try again with a clearer
+                  Unable to verify the items. Please try again with a clearer
                   image.
                 </p>
               </div>

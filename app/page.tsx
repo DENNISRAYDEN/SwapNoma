@@ -2,7 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { ArrowRight, Leaf, Recycle, Users, Coins, MapPin } from "lucide-react";
+import {
+  ArrowRight,
+  PlusIcon,
+  Leaf,
+  Recycle,
+  Users,
+  Coins,
+  MapPin,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -37,21 +45,29 @@ export default function Home() {
     <div className="container mx-auto px-4 py-16">
       <section className="text-center mb-20">
         <AnimatedGlobe />
-        <h1 className="text-6xl font-bold mb-6 text-gray-800 tracking-tight">
-          SwapNoma{" "}
-          <span className="text-green-600">Reuse & Redistribution</span>
-        </h1>
+        <h2 className="text-6xl font-bold mb-6 tracking-tight">
+          <span className="text-gray-800">Recycle </span>
+
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-green-500 to-green-600">
+            Anything
+          </span>
+          <span className="text-gray-800"> & Earn </span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600">
+            Rewards
+          </span>
+        </h2>
+
         <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed mb-8">
-          Join our community in collecting used clothes, sorting them by fabric
-          type, and separating reusable items from cloth to make clothing
-          recycling more efficient and rewarding!
+          Join our community in collecting used items, sorting them by type, and
+          separating reusable materials to make recycling more efficient and
+          rewarding!
         </p>
 
         <Button
           onClick={handleRecycleClick}
           disabled={loading}
-          className={`bg-green-600 hover:bg-green-700 text-white text-lg py-6 px-10 rounded-full font-medium transition-all duration-300 ease-in-out transform ${
-            loading ? "opacity-50 cursor-not-allowed" : "hover:scale-105"
+          className={`bg-gradient-to-r from-green-400 via-green-500 to-green-600 hover:from-green-500 hover:via-green-600 hover:to-green-700 text-white text-lg py-6 px-10 rounded-full font-medium transition-all duration-300 ease-in-out transform ${
+            loading ? "opacity-50 cursor-not-allowed" : "hover:cursor-pointer"
           }`}
         >
           {loading ? (
@@ -60,7 +76,7 @@ export default function Home() {
             </span>
           ) : (
             <>
-              Recycle Clothes
+              Get Started
               <ArrowRight className="ml-2 h-5 w-5" />
             </>
           )}
@@ -71,17 +87,17 @@ export default function Home() {
         <FeatureCard
           icon={Leaf}
           title="Eco-Friendly"
-          description="Play your part in a cleaner environment by recycling clothes—collect, sort, and repurpose for a sustainable future!"
+          description="Play your part in a cleaner environment by recycling items: collect, sort, and repurpose for a sustainable future!"
         />
         <FeatureCard
           icon={Coins}
           title="Earn Rewards"
-          description="Earn tokens for your efforts in recycling and repurposing clothes!"
+          description="Earn tokens for your efforts in recycling and repurposing items!"
         />
         <FeatureCard
           icon={Users}
           title="Community-Driven"
-          description="Join today and be part of a thriving community dedicated to sustainable clothing recycling!"
+          description="Join today and be part of a thriving community dedicated to sustainable items recycling!"
         />
       </section>
 
@@ -90,10 +106,49 @@ export default function Home() {
           Our Impact on the Environment
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <ImpactCard title="Recycled Clothes" value={"200kg"} icon={Recycle} />
-          <ImpactCard title="Collected Clothes" value={"500"} icon={MapPin} />
-          <ImpactCard title="Tokens Earned" value={"2000"} icon={Coins} />
-          <ImpactCard title="CO₂ Offset" value={"50kg"} icon={Leaf} />
+          <ImpactCard
+            title="Recycled Items"
+            value={
+              <span className="flex items-center gap-1 font-medium">
+                <PlusIcon className="w-8 h-8 font-bold" />
+                2000
+              </span>
+            }
+            icon={Recycle}
+          />
+
+          <ImpactCard
+            title="Collected Items"
+            value={
+              <span className="flex items-center gap-1 font-medium">
+                <PlusIcon className="w-8 h-8 font-bold" />
+                500
+              </span>
+            }
+            icon={MapPin}
+          />
+
+          <ImpactCard
+            title="Tokens Earned"
+            value={
+              <span className="flex items-center gap-1 font-medium">
+                <PlusIcon className="w-8 h-8 font-bold" />
+                2000
+              </span>
+            }
+            icon={Coins}
+          />
+
+          <ImpactCard
+            title="CO₂ Offset"
+            value={
+              <span className="flex items-center gap-1 font-medium">
+                <PlusIcon className="w-8 h-8 font-bold" />
+                50kg
+              </span>
+            }
+            icon={Leaf}
+          />
         </div>
       </section>
     </div>
@@ -128,7 +183,7 @@ function ImpactCard({
   icon: Icon,
 }: {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   icon: React.ElementType;
 }) {
   const formattedValue =

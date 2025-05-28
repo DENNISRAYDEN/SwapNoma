@@ -42,8 +42,11 @@ export async function createReport(
   location: string,
   clothType: string,
   amount: string,
+  price?: number,
+  discount?: number,
   imageUrl?: string,
   type?: string,
+
   verificationResult?: any
 ) {
   try {
@@ -70,13 +73,13 @@ export async function createReport(
       userId,
       "earned_report",
       pointsEarned,
-      "Points earned for recycling clothes"
+      "Points earned for recycling items"
     );
 
     // Create a notification for the user
     await createNotification(
       userId,
-      `You've earned ${pointsEarned} points for recycling clothes!`,
+      `You've earned ${pointsEarned} points for recycling items!`,
       "reward"
     );
 

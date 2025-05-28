@@ -1,10 +1,19 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
-import { MapPin, Upload, CheckCircle, Loader } from "lucide-react";
+import { MapPin, Upload, CheckCircle, Loader, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { StandaloneSearchBox, useJsApiLoader } from "@react-google-maps/api";
 import { Libraries } from "@react-google-maps/api";
+
 import {
   createUser,
   getUserByEmail,
@@ -39,20 +48,21 @@ export default function ReportPage() {
   const [newReport, setNewReport] = useState({
     location: "",
     type: "",
-    amount: "",
+    condition: "", // Changed from amount to condition
+    discount: "", // Added discount
     estimatedValue: "",
+    waste_type: "",
+    dicount: "",
   });
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<
     "idle" | "verifying" | "success" | "failure"
   >("idle");
-  const [verificationResult, setVerificationResult] = useState<{
-    clothType: string;
-    quantity: string;
-    confidence: number;
-    estimatedValue: string;
-  } | null>(null);
+  const [verificationResult, setVerificationResult] = useState<Record<
+    string,
+    any
+  > | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchBox, setSearchBox] =
     useState<google.maps.places.SearchBox | null>(null);
@@ -100,7 +110,7 @@ export default function ReportPage() {
       const min = parseInt(match[1], 10);
       const max = parseInt(match[2], 10);
       const average = Math.round((min + max) / 2);
-      return Math.floor(average * 0.1); // 10% of the average value
+      return Math.floor(average * 0.1);
     }
     return 0;
   };
@@ -111,15 +121,43 @@ export default function ReportPage() {
       toast.error("You must be logged in to upload an image.");
       return;
     }
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string);
+
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    setFile(selectedFile);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 300;
+        const maxHeight = 300;
+        let { width, height } = img;
+
+        if (width > height && width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        } else if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const resizedDataUrl = canvas.toDataURL(selectedFile.type);
+          setPreview(resizedDataUrl);
+        }
       };
-      reader.readAsDataURL(selectedFile);
-    }
+      img.src = event.target?.result as string;
+    };
+
+    reader.readAsDataURL(selectedFile);
   };
 
   // Helper function to read file as Base64
@@ -135,11 +173,11 @@ export default function ReportPage() {
   // Handle clothing verification using Gemini AI
   const handleVerify = async () => {
     if (!user) {
-      toast.error("You must be logged in to verify clothing.");
+      toast.error("You must be logged in to verify items.");
       return;
     }
     if (!file) {
-      toast.error("Please upload an image of clothing.");
+      toast.error("Please upload an image of the item.");
       return;
     }
     setVerificationStatus("verifying");
@@ -148,6 +186,7 @@ export default function ReportPage() {
       const genAI = new GoogleGenerativeAI(geminiApiKey!);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const base64Data = await readFileAsBase64(file);
+
       const imageParts = [
         {
           inlineData: {
@@ -156,18 +195,104 @@ export default function ReportPage() {
           },
         },
       ];
-      const prompt = `Analyze this image and provide:
-        1. The type of cloth (e.g., cotton, polyester, wool, silk)
-        2. An estimate of the quantity or amount (in kg or pieces)
-        3. An estimated monetary value of the clothing in the format "Approximately 1000-2000 KSH"
-        4. Your confidence level in this assessment (as a percentage)
-        Respond in JSON format like this:
-        {
-          "clothType": "type of cloth",
-          "quantity": "estimated quantity with unit",
-          "estimatedValue": "Approximately 1000-2000 KSH",
-          "confidence": confidence level as a number between 0 and 1
-        }`;
+
+      let prompt = "";
+
+      switch (newReport.waste_type) {
+        case "clothes":
+          prompt = `
+            Analyze this clothing image and provide:
+            1. The type of cloth (e.g., cotton, polyester, wool, silk)
+            2. Color of the clothing
+            3. Condition of the clothing one word choose from (e.g., new, Clean, Undamaged)
+            4. Your confidence level in this assessment (as a percentage)
+
+            Respond in JSON format like this:
+            {
+              "clothType": "type of cloth",
+              "color": "color of the clothing",
+              "condition": "condition of the clothing",
+              "confidence": confidence level as a number between 0 and 1
+            }
+          `;
+          break;
+
+        case "appliances":
+          prompt = `
+            Analyze this appliance image and provide:
+            1. The type of appliance (e.g., microwave, refrigerator, washing machine)
+            2. Brand and model (if visible)
+            3. Working condition (e.g., functional, non-functional, needs repair)
+            4. Your confidence level in this assessment (as a percentage)
+
+            Respond in JSON format like this:
+            {
+              "applianceType": "type of appliance",
+              "brandModel": "brand and model",
+              "condition": "working condition",
+              "confidence": confidence level as a number between 0 and 1
+            }
+          `;
+          break;
+
+        case "electronics":
+          prompt = `
+            Analyze this electronic device image and provide:
+            1. The type of device (e.g., smartphone, laptop, tablet)
+            2. Brand and model (if visible)
+            3. Physical and functional condition
+            4. Your confidence level in this assessment (as a percentage)
+
+            Respond in JSON format like this:
+            {
+              "deviceType": "type of electronic device",
+              "brandModel": "brand and model",
+              "condition": "physical and functional condition",
+              "confidence": confidence level as a number between 0 and 1
+            }
+          `;
+          break;
+
+        case "books_paper":
+          prompt = `
+            Analyze this book or paper image and provide:
+            1. The type of material (e.g., textbook, novel, magazine, notebook)
+            2. Condition of the clothing one word choose from (e.g., new, Clean, Undamaged)
+            3. Your confidence level in this assessment (as a percentage)
+
+            Respond in JSON format like this:
+            {
+              "materialType": "type of book or paper",
+              "condition": "condition of the material",
+              "confidence": confidence level as a number between 0 and 1
+            }
+          `;
+          break;
+
+        case "furniture":
+          prompt = `
+            Analyze this furniture image and provide:
+            1. The type of furniture (e.g., chair, table, sofa, bed)
+            2. Material one word choose from (e.g., wood, metal, plastic)
+            4. Condition one word choose from (e.g., good, worn, broken parts)
+            5. Your confidence level in this assessment (as a percentage)
+
+            Respond in JSON format like this:
+            {
+              "furnitureType": "type of furniture",
+              "material": "material of the furniture",
+              "condition": "condition of the furniture",
+              "confidence": confidence level as a number between 0 and 1
+            }
+          `;
+          break;
+
+        default:
+          toast.error("Please select a valid item type.");
+          setVerificationStatus("failure");
+          return;
+      }
+
       const result = await model.generateContent([prompt, ...imageParts]);
       const response = await result.response;
       const text = response.text();
@@ -180,33 +305,50 @@ export default function ReportPage() {
         const parsedResult = JSON.parse(parsedText);
 
         if (
-          parsedResult.clothType &&
-          parsedResult.quantity &&
-          parsedResult.estimatedValue &&
-          parsedResult.confidence
+          parsedResult &&
+          typeof parsedResult.confidence === "number" &&
+          parsedResult.confidence >= 0.5
         ) {
           setVerificationResult(parsedResult);
           setVerificationStatus("success");
+          toast.success(
+            `Upload successful, confidence (${(
+              parsedResult.confidence * 100
+            ).toFixed(1)}%). Please wait while we verify the item.`
+          );
+
+          // Map result fields dynamically to the form
+          const type =
+            parsedResult.clothType ||
+            parsedResult.applianceType ||
+            parsedResult.deviceType ||
+            parsedResult.materialType ||
+            parsedResult.furnitureType ||
+            "Unknown";
+
+          const condition = parsedResult.condition || "N/A";
+
           setNewReport({
             ...newReport,
-            type: parsedResult.clothType,
-            amount: parsedResult.quantity,
-            estimatedValue: parsedResult.estimatedValue,
+            type,
+            condition,
           });
         } else {
           console.error("Invalid verification result:", parsedResult);
           setVerificationStatus("failure");
-          toast.error("No clothes detected. Please upload a valid image.");
+          toast.error(
+            "Could not verify the item. Please upload a clear image."
+          );
         }
       } catch (error) {
         console.error("Failed to parse JSON response:", text);
         setVerificationStatus("failure");
-        toast.error("Error verifying clothing. Please try again.");
+        toast.error("Error verifying item. Please try again.");
       }
     } catch (error) {
-      console.error("Error verifying cloth:", error);
+      console.error("Error during verification:", error);
       setVerificationStatus("failure");
-      toast.error("Error verifying clothing. Please try again.");
+      toast.error("Error verifying item. Please try again.");
     }
   };
 
@@ -221,11 +363,11 @@ export default function ReportPage() {
     if (
       !newReport.location ||
       !newReport.type ||
-      !newReport.amount ||
-      !newReport.estimatedValue ||
+      !newReport.condition || // Changed from amount to condition
+      !newReport.discount || // Added discount
       verificationStatus !== "success"
     ) {
-      toast.error("All fields are required and clothing must be verified.");
+      toast.error("All fields are required and item must be verified.");
       return;
     }
 
@@ -238,9 +380,12 @@ export default function ReportPage() {
         user.id,
         newReport.location,
         newReport.type,
-        newReport.amount,
-        preview || undefined,
-        verificationResult ? JSON.stringify(verificationResult) : undefined
+        newReport.condition, // Changed from amount to condition
+        newReport.estimatedValue ? Number(newReport.estimatedValue) : undefined, // price (number)
+        newReport.discount ? Number(newReport.discount) : undefined, // discount (number)
+        preview || undefined, // imageUrl
+        newReport.waste_type || undefined, // type
+        verificationResult ? JSON.stringify(verificationResult) : undefined // verificationResult
       )) as any;
 
       // Update the user's points in the database
@@ -262,7 +407,7 @@ export default function ReportPage() {
         id: report.id,
         location: report.location,
         clothType: report.clothType,
-        amount: report.amount,
+        amount: report.amount, // This might need adjustment based on your data structure
         estimatedValue: report.estimatedValue,
         createdAt: report.createdAt.toISOString().split("T")[0],
       };
@@ -271,14 +416,22 @@ export default function ReportPage() {
       setReports([formattedReport, ...reports]);
 
       // Reset form fields
-      setNewReport({ location: "", type: "", amount: "", estimatedValue: "" });
+      setNewReport({
+        location: "",
+        type: "",
+        condition: "", // Changed from amount to condition
+        discount: "", // Added discount
+        estimatedValue: "",
+        waste_type: "",
+        dicount: "",
+      });
       setFile(null);
       setPreview(null);
       setVerificationStatus("idle");
       setVerificationResult(null);
 
       toast.success(
-        `Report submitted successfully! You've earned ${pointsEarned} points for reporting cloth recycling.`
+        `Report submitted successfully! You've earned ${pointsEarned} points for reporting item recycling.`
       );
     } catch (error) {
       console.error("Error submitting report:", error);
@@ -300,11 +453,9 @@ export default function ReportPage() {
           }
 
           // Transform the user object to include the 'points' property
-          const transformedUser = user
-            ? { ...user, points: 0 } // Add 'points' with a default value of 0
-            : null;
+          const transformedUser = user ? { ...user, points: 0 } : null;
 
-          setUser(transformedUser); // Pass the transformed object to setUser
+          setUser(transformedUser);
         } catch (error) {
           console.error("Error fetching or creating user:", error);
         }
@@ -318,13 +469,13 @@ export default function ReportPage() {
         const formattedReports = recentReports.map((report) => ({
           id: report.id,
           location: report.location,
-          clothType: report.clothType, // Map 'clothType' to 'clothType'
+          clothType: report.clothType,
           amount: report.amount,
-          estimatedValue: "N/A", // Add a placeholder for 'estimatedValue'
+          estimatedValue: "N/A",
           createdAt: report.createdAt.toISOString().split("T")[0], // Format date
         }));
 
-        setReports(formattedReports); // Pass the transformed array to setReports
+        setReports(formattedReports);
       } catch (error) {
         console.error("Error fetching recent reports:", error);
       }
@@ -334,9 +485,9 @@ export default function ReportPage() {
   }, []);
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="w-full px-1 py-1 sm:px-1 sm:py-4 mx-auto max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl xl:max-w-4xl">
       <h1 className="text-3xl font-semibold mb-6 text-gray-800">
-        Clothes Recycling Report
+        Items Recycling Report
       </h1>
 
       <form
@@ -345,12 +496,25 @@ export default function ReportPage() {
       >
         {/* Image Upload Section */}
         <div className="mb-8 ">
-          <label
-            htmlFor="cloth-image"
-            className="block text-lg font-medium text-gray-700 mb-2"
-          >
-            Upload Clothing Image
-          </label>
+          <div className="w-full sm:w-1/2 lg:w-1/3 max-w-xs relative">
+            <Select
+              onValueChange={(value) =>
+                setNewReport({ ...newReport, waste_type: value })
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select Item Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="appliances">Appliances</SelectItem>
+                <SelectItem value="clothes">Clothes</SelectItem>
+                <SelectItem value="books_paper">Books & Paper</SelectItem>
+                <SelectItem value="electronics">Electronics</SelectItem>
+                <SelectItem value="furniture">Furniture</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div
             onClick={() => {
               if (!user) {
@@ -365,7 +529,7 @@ export default function ReportPage() {
               {preview ? (
                 <img
                   src={preview}
-                  alt="Cloth preview"
+                  alt="Item preview"
                   className="max-w-full h-auto rounded-xl shadow-md cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation(); // Prevent triggering the parent div's click event
@@ -415,7 +579,7 @@ export default function ReportPage() {
               Verifying...
             </>
           ) : (
-            "Verify Clothing"
+            "Verify Items"
           )}
         </Button>
 
@@ -428,18 +592,50 @@ export default function ReportPage() {
                 <h3 className="text-lg font-medium text-green-800">
                   Verification Successful
                 </h3>
-                <div className="mt-2 text-sm text-green-700">
-                  <p>Clothing Type: {verificationResult.clothType}</p>
-                  <p>Quantity: {verificationResult.quantity}</p>
-                  <p>Estimated Value: {verificationResult.estimatedValue}</p>
-                  <p>
-                    Confidence:{" "}
-                    {(verificationResult.confidence * 100).toFixed(2)}%
-                  </p>
-                  <p>
-                    Points Earned: {calculatePoints(newReport.estimatedValue)}
-                  </p>
-                </div>
+                {newReport.waste_type === "clothes" && (
+                  <>
+                    <p>Clothing Type: {verificationResult.clothType}</p>
+                    <p>Color: {verificationResult.color}</p>
+                    <p>Condition: {verificationResult.condition}</p>
+                  </>
+                )}
+                {newReport.waste_type === "appliances" && (
+                  <>
+                    <p>Appliance Type: {verificationResult.applianceType}</p>
+                    <p>Brand/Model: {verificationResult.brandModel}</p>
+                    <p>Working Condition: {verificationResult.condition}</p>
+                  </>
+                )}
+                {newReport.waste_type === "electronics" && (
+                  <>
+                    <p>Device Type: {verificationResult.deviceType}</p>
+                    <p>Brand/Model: {verificationResult.brandModel}</p>
+                    <p>
+                      Physical/Functional Condition:{" "}
+                      {verificationResult.condition}
+                    </p>
+                  </>
+                )}
+                {newReport.waste_type === "books_paper" && (
+                  <>
+                    <p>Material Type: {verificationResult.materialType}</p>
+                    <p>Condition: {verificationResult.condition}</p>
+                  </>
+                )}
+                {newReport.waste_type === "furniture" && (
+                  <>
+                    <p>Furniture Type: {verificationResult.furnitureType}</p>
+                    <p>Material: {verificationResult.material}</p>
+                    <p>Condition: {verificationResult.condition}</p>
+                  </>
+                )}
+                <p>
+                  Confidence: {(verificationResult.confidence * 100).toFixed(2)}
+                  %
+                </p>
+                <p>
+                  Points Earned: {calculatePoints(newReport.estimatedValue)}
+                </p>
               </div>
             </div>
           </div>
@@ -447,6 +643,22 @@ export default function ReportPage() {
 
         {/* Form Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          <div>
+            <label
+              htmlFor="estimatedValue"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Set Your Price (KSH)
+            </label>
+            <input
+              type="text"
+              id="estimatedValue"
+              name="estimatedValue"
+              required
+              placeholder="e.g., 1500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
           <div>
             <label
               htmlFor="location"
@@ -467,7 +679,7 @@ export default function ReportPage() {
                   onChange={handleInputChange}
                   required
                   className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
-                  placeholder="Enter cloth location"
+                  placeholder="Enter item location"
                 />
               </StandaloneSearchBox>
             ) : (
@@ -479,64 +691,46 @@ export default function ReportPage() {
                 onChange={handleInputChange}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
-                placeholder="Enter cloth location"
+                placeholder="Enter item location"
               />
             )}
           </div>
           <div>
             <label
-              htmlFor="type"
+              htmlFor="discount"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Clothing Type
+              Discount (%)
             </label>
-            <input
-              type="text"
-              id="type"
-              name="type"
-              value={newReport.type}
+            <Input
+              type="number"
+              id="discount"
+              name="discount"
+              value={newReport.discount}
               onChange={handleInputChange}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"
-              placeholder="Verified cloth type"
-              readOnly
+              placeholder="Enter discount percentage"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
+              min={0}
+              max={100}
             />
           </div>
           <div>
             <label
-              htmlFor="amount"
+              htmlFor="condition"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Estimated Amount (kg or pieces)
+              Item Condition
             </label>
             <input
               type="text"
-              id="amount"
-              name="amount"
-              value={newReport.amount}
+              id="condition"
+              name="condition"
+              value={newReport.condition}
               onChange={handleInputChange}
               required
               className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"
-              placeholder="Verified amount"
-              readOnly
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="estimatedValue"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Estimated Value (KSH)
-            </label>
-            <input
-              type="text"
-              id="estimatedValue"
-              name="estimatedValue"
-              value={newReport.estimatedValue}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 bg-gray-100"
-              placeholder="Verified value"
+              placeholder="Verified condition"
               readOnly
             />
           </div>
@@ -571,9 +765,12 @@ export default function ReportPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Location
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Item Type
+                </th>
 
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
+                  Condition
                 </th>
 
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -581,23 +778,31 @@ export default function ReportPage() {
                 </th>
               </tr>
             </thead>
+            <thead></thead>
             <tbody className="divide-y divide-gray-200">
               {reports.map((report) => (
                 <tr
                   key={report.id}
-                  className="hover:bg-gray-50 transition-colors duration-200"
+                  className="hover:bg-green-50 transition-colors duration-200 "
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <MapPin className="inline-block w-4 h-4 mr-2 text-green-500" />
                     {report?.location
-                      ? report.location.split(" ").slice(0, 3).join(" ") + "..."
+                      ? report.location.length > 30
+                        ? `${report.location.substring(0, 30)}...`
+                        : report.location
                       : "—"}
                   </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {report.amount}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 ">
+                    {report.clothType && report.clothType.length > 20
+                      ? `${report.clothType.substring(0, 20)}...`
+                      : report.clothType}
                   </td>
-
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {report.amount && report.amount.length > 20
+                      ? `${report.amount.substring(0, 20)}...`
+                      : report.amount}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(report.createdAt).toLocaleDateString("en-GB")}
                   </td>

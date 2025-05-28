@@ -1,21 +1,21 @@
 // @ts-nocheck
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Menu,
-  Coins,
-  Leaf,
   Search,
+  HandCoins,
   Bell,
   User,
   ChevronDown,
   LogIn,
   LogOut,
 } from "lucide-react";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,77 +71,123 @@ interface Notification {
 }
 
 export default function Header({ onMenuClick }: HeaderProps) {
-  const [provider, setProvider] = useState(null);
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [provider, setProvider] = useState<any>(null);
+  const [loggedIn, setLoggedIn] = useState(false); // Initialize as false
   const [userInfo, setUserInfo] = useState<any>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [balance, setBalance] = useState(0);
   const pathname = usePathname();
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initializationError, setInitializationError] = useState<string | null>(
+    null
+  );
+  const [notificationFetchError, setNotificationFetchError] = useState<
+    string | null
+  >(null);
+  const [balanceFetchError, setBalanceFetchError] = useState<string | null>(
+    null
+  );
+
+  const initializeWeb3Auth = useCallback(async () => {
+    setIsInitializing(true);
+    setInitializationError(null);
+    try {
+      await web3auth.initModal();
+      setProvider(web3auth.provider);
+
+      if (web3auth.connected) {
+        setLoggedIn(true);
+        const user = await web3auth.getUserInfo();
+        setUserInfo(user);
+        if (user.email) {
+          localStorage.setItem("userEmail", user.email);
+          try {
+            const existingUser = await getUserByEmail(user.email);
+            if (!existingUser) {
+              await createUser(user.email, user.name || "Anonymous User");
+              toast.success(`Welcome, ${user.name || "New User"}!`);
+            }
+          } catch (error: any) {
+            console.error("Error creating/fetching user:", error);
+            toast.error("Error during user setup.");
+          }
+        }
+      } else {
+        setLoggedIn(false);
+        setUserInfo(null);
+        localStorage.removeItem("userEmail");
+      }
+    } catch (error: any) {
+      console.error("Web3Auth init error:", error);
+      let errorMessage = "Failed to initialize Web3Auth.";
+      if (error?.message) {
+        errorMessage += ` Details: ${error.message}`;
+      }
+      toast.error(errorMessage);
+      setInitializationError(errorMessage);
+    } finally {
+      setIsInitializing(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const checkUserLogin = async () => {
-      const email = localStorage.getItem("userEmail");
-      if (email) {
-        setLoading(true);
-        try {
-          await web3auth.initModal();
-          setProvider(web3auth.provider);
-          if (web3auth.connected) {
-            setLoggedIn(true);
-            const user = await web3auth.getUserInfo();
-            setUserInfo(user);
-
-            if (user.email && user.email === email) {
-              const existingUser = await getUserByEmail(user.email);
-              if (!existingUser) {
-                await createUser(user.email, user.name || "Anonymous User");
-                toast.success("User created successfully!");
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Web3Auth init error:", error);
-          toast.error("Web3Auth init failed.");
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    checkUserLogin();
-  }, []);
+    initializeWeb3Auth();
+  }, [initializeWeb3Auth]);
 
   useEffect(() => {
     const fetchNotifications = async () => {
       if (userInfo?.email) {
-        const user = await getUserByEmail(userInfo.email);
-        if (user) {
-          const unread = await getUnreadNotifications(user.id);
-          setNotifications(unread);
+        setNotificationFetchError(null);
+        try {
+          const user = await getUserByEmail(userInfo.email);
+          if (user) {
+            const unread = await getUnreadNotifications(user.id);
+            setNotifications(unread);
+          }
+        } catch (error: any) {
+          console.error("Error fetching notifications:", error);
+          setNotificationFetchError("Failed to fetch notifications.");
+          toast.error("Failed to fetch notifications.");
         }
+      } else {
+        setNotifications([]);
       }
     };
 
-    fetchNotifications();
-
-    const interval = setInterval(fetchNotifications, 2000);
-    return () => clearInterval(interval);
-  }, [userInfo]);
+    if (loggedIn && !isInitializing) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 5000); // Adjusted interval
+      return () => clearInterval(interval);
+    }
+  }, [userInfo, loggedIn, isInitializing]);
 
   useEffect(() => {
     const fetchUserBalance = async () => {
       if (userInfo?.email) {
-        const user = await getUserByEmail(userInfo.email);
-        if (user) {
-          const userBalance = await getUserBalance(user.id);
-          setBalance(userBalance);
+        setBalanceFetchError(null);
+        try {
+          const user = await getUserByEmail(userInfo.email);
+          if (user) {
+            const userBalance = await getUserBalance(user.id);
+            setBalance(userBalance);
+          } else {
+            setBalance(0);
+          }
+        } catch (error: any) {
+          console.error("Error fetching user balance:", error);
+          setBalanceFetchError("Failed to fetch user balance.");
+          toast.error("Failed to fetch user balance.");
+          setBalance(0);
         }
+      } else {
+        setBalance(0);
       }
     };
 
-    fetchUserBalance();
+    if (loggedIn && !isInitializing) {
+      fetchUserBalance();
+    }
 
     const handleBalanceUpdate = (event: CustomEvent) => {
       setBalance(event.detail);
@@ -152,44 +198,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
     return () => {
       window.removeEventListener("balanceUpdated", handleBalanceUpdate);
     };
-  }, [userInfo]);
-
-  const initWeb3Auth = async () => {
-    try {
-      setLoading(true);
-      await web3auth.initModal();
-      setProvider(web3auth.provider);
-
-      if (web3auth.connected) {
-        setLoggedIn(true);
-        const user = await web3auth.getUserInfo();
-        setUserInfo(user);
-
-        if (user.email) {
-          localStorage.setItem("userEmail", user.email);
-          const existingUser = await getUserByEmail(user.email);
-          if (!existingUser) {
-            await createUser(user.email, user.name || "Anonymous User");
-            toast.success("User created successfully!");
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Web3Auth init error:", error);
-      toast.error("Web3Auth init failed.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [userInfo, loggedIn, isInitializing]);
 
   const login = async () => {
     if (!web3auth) {
-      toast.error("Web3Auth not ready.");
+      toast.error("Web3Auth not ready. Please try again.");
       return;
-    }
-
-    if (!provider) {
-      await initWeb3Auth();
     }
 
     try {
@@ -201,17 +215,33 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
       if (user.email) {
         localStorage.setItem("userEmail", user.email);
-        const existingUser = await getUserByEmail(user.email);
-        if (!existingUser) {
-          await createUser(user.email, user.name || "Anonymous User");
-          toast.success(`Welcome, ${user.name || "User"}!`);
-        } else {
-          toast.success(`Welcome back, ${user.name || "User"}!`);
+        try {
+          const existingUser = await getUserByEmail(user.email);
+          if (!existingUser) {
+            await createUser(user.email, user.name || "Anonymous User");
+            toast.success(`Welcome, ${user.name || "New User"}!`);
+          } else {
+            toast.success(`Welcome back, ${user.name || "User"}!`);
+          }
+        } catch (error: any) {
+          console.error("Error creating/fetching user after login:", error);
+          toast.error("Error during user setup after login.");
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Login failed.");
+      if (error?.message?.includes("User closed modal")) {
+        toast.error("Login cancelled by user.");
+      } else {
+        let errorMessage = "Login failed. Please try again.";
+        if (error?.message) {
+          errorMessage += ` Details: ${error.message}`;
+        }
+        toast.error(errorMessage);
+      }
+      setLoggedIn(false);
+      setUserInfo(null);
+      localStorage.removeItem("userEmail");
     }
   };
 
@@ -222,24 +252,36 @@ export default function Header({ onMenuClick }: HeaderProps) {
       setLoggedIn(false);
       setUserInfo(null);
       localStorage.removeItem("userEmail");
-      toast.success("Logged out.");
-    } catch (error) {
+      toast.success("Logged out successfully.");
+    } catch (error: any) {
       console.error("Logout error:", error);
-      toast.error("Logout failed.");
+      let errorMessage = "Logout failed. Please try again.";
+      if (error?.message) {
+        errorMessage += ` Details: ${error.message}`;
+      }
+      toast.error(errorMessage);
     }
   };
 
   const handleNotificationClick = async (notificationId: number) => {
-    await markNotificationAsRead(notificationId);
-    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+    if (userInfo?.email) {
+      try {
+        await markNotificationAsRead(notificationId);
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
 
-    const user = await getUserByEmail(userInfo.email);
-    const updatedBalance = await getUserBalance(user.id);
-    setBalance(updatedBalance);
-
-    window.dispatchEvent(
-      new CustomEvent("balanceUpdated", { detail: updatedBalance })
-    );
+        const user = await getUserByEmail(userInfo.email);
+        if (user) {
+          const updatedBalance = await getUserBalance(user.id);
+          setBalance(updatedBalance);
+          window.dispatchEvent(
+            new CustomEvent("balanceUpdated", { detail: updatedBalance })
+          );
+        }
+      } catch (error: any) {
+        console.error("Error marking notification as read:", error);
+        toast.error("Failed to update notification.");
+      }
+    }
   };
 
   return (
@@ -247,23 +289,24 @@ export default function Header({ onMenuClick }: HeaderProps) {
       <Toaster />
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="flex items-center justify-between px-4 py-2">
-          <div className="flex items-center">
+          <div className="flex items-center lg:ml-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={onMenuClick}
-              className="mr-2 md:mr-4"
+              className="mr-2 md:mr-4 lg:hidden"
+              disabled={isInitializing}
             >
-              <Menu className="h-6 w-6" />
+              {/* Show Menu icon only on mobile */}
+              <Menu className="h-6 w-6 lg:hidden" />
             </Button>
             <Link href="/" className="flex items-center">
-              <Leaf className="h-6 w-6 md:h-8 md:w-8 text-green-500 mr-1 md:mr-2" />
               <div className="flex flex-col">
                 <span className="font-bold text-base md:text-lg text-gray-800">
                   Swap <span className="text-green-500">Noma</span>
                 </span>
                 <span className="text-[8px] md:text-[10px] text-gray-500 -mt-1">
-                  Home of Fashion.
+                  Recycle Now.Save World
                 </span>
               </div>
             </Link>
@@ -288,7 +331,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
             {/* Notification Bell */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="relative"
+                  disabled={isInitializing}
+                >
                   <Bell className="h-6 w-6" />
                   {notifications.length > 0 && (
                     <Badge className="absolute -top-1 -right-1 px-1 min-w-[1.2rem] h-5">
@@ -298,39 +346,44 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
-                {notifications.length > 0 ? (
-                  notifications.map((n) => (
-                    <DropdownMenuItem
-                      key={n.id}
-                      onClick={() => handleNotificationClick(n.id)}
-                    >
-                      <div className="flex flex-col mr-10">
-                        <span className="text-sm text-gray-500">
-                          You've earned 100 points for reporting cloth
-                          recycling.
-                        </span>
-                        <hr className="my-2 " />
-                      </div>
-                    </DropdownMenuItem>
-                  ))
-                ) : (
-                  <DropdownMenuItem>No new notifications</DropdownMenuItem>
+                {notificationFetchError && (
+                  <DropdownMenuItem disabled>
+                    Error loading notifications.
+                  </DropdownMenuItem>
                 )}
+                {!notificationFetchError && notifications.length > 0
+                  ? notifications.map((n) => (
+                      <DropdownMenuItem
+                        key={n.id}
+                        onClick={() => handleNotificationClick(n.id)}
+                      >
+                        <div className="flex flex-col mr-10">
+                          <span className="text-sm text-gray-500">
+                            {n.message}
+                          </span>
+                          <hr className="my-2 " />
+                        </div>
+                      </DropdownMenuItem>
+                    ))
+                  : !notificationFetchError && (
+                      <DropdownMenuItem>No new notifications</DropdownMenuItem>
+                    )}
               </DropdownMenuContent>
             </DropdownMenu>
-            {/* Balance Display (optional, adjust based on design) */}
-            {/* <div className="flex items-center bg-gray-100 rounded-full px-2 py-1">
-              <Coins className="h-4 w-4 text-green-500" />
-              <span className="font-semibold text-sm text-gray-800">{balance.toFixed(2)}</span>
-            </div> */}
             {/* Login Button / User Profile */}
-            {!loggedIn ? (
+            {isInitializing ? (
+              <Button variant="ghost" size="icon" disabled>
+                <User className="h-5 w-5 mr-1 animate-pulse" />{" "}
+                {/* Show a placeholder during initialization */}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            ) : !loggedIn ? (
               <Button
                 onClick={login}
-                disabled={loading}
                 className="bg-green-600 hover:bg-green-700 text-white text-sm"
+                disabled={isInitializing}
               >
-                {loading ? "Log in" : "Login"}
+                Login
                 <LogIn className="ml-1 h-4 w-4" />
               </Button>
             ) : (
@@ -340,6 +393,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     variant="ghost"
                     size="icon"
                     className="flex items-center"
+                    disabled={isInitializing}
                   >
                     {userInfo?.profileImage ? (
                       <img
@@ -354,10 +408,13 @@ export default function Header({ onMenuClick }: HeaderProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem disabled>
                     {userInfo?.name || "User"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                  <Link href="/settings">
+                    <DropdownMenuItem>Settings</DropdownMenuItem>
+                  </Link>
+
                   <DropdownMenuItem onClick={logout}>Sign Out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

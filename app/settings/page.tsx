@@ -90,157 +90,156 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Show warning message if user is not logged in */}
-      {!isLoggedIn && (
+      {/* Conditionally render the form based on isLoggedIn */}
+      {isLoggedIn ? (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Name Field */}
+          <div>
+            <label
+              htmlFor="name"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Full Name
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                id="name"
+                name="name"
+                value={settings.name}
+                onChange={handleInputChange}
+                className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                disabled={!isLoggedIn || loading}
+                placeholder="Full Name"
+              />
+              <User
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+            </div>
+          </div>
+
+          {/* Email Field */}
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Email Address
+            </label>
+            <div className="relative">
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={settings.email}
+                onChange={handleInputChange}
+                className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                disabled={!isLoggedIn || loading}
+                placeholder="Email Address"
+              />
+              <Mail
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+            </div>
+          </div>
+
+          {/* Phone Field */}
+          <div>
+            <label
+              htmlFor="phone"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Phone Number
+            </label>
+            <div className="relative">
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                value={settings.phone}
+                onChange={handleInputChange}
+                className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                disabled={!isLoggedIn || loading}
+                placeholder="Phone Number"
+              />
+              <Phone
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+            </div>
+          </div>
+
+          {/* Address Field */}
+          <div>
+            <label
+              htmlFor="address"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Address
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                id="address"
+                name="address"
+                value={settings.address}
+                onChange={handleInputChange}
+                className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
+                disabled={!isLoggedIn || loading}
+                placeholder="Address"
+              />
+              <MapPin
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={18}
+              />
+            </div>
+          </div>
+
+          {/* Notifications Checkbox */}
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="notifications"
+              name="notifications"
+              checked={settings.notifications}
+              onChange={handleInputChange}
+              className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+              disabled={!isLoggedIn || loading}
+            />
+            <label
+              htmlFor="notifications"
+              className="ml-2 block text-sm text-gray-700"
+            >
+              Receive email notifications
+            </label>
+          </div>
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            className={`w-full ${
+              !isLoggedIn || loading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-green-500 hover:bg-green-600"
+            } text-white`}
+            disabled={!isLoggedIn || loading}
+          >
+            {loading ? (
+              <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            {loading ? "Saving..." : "Save Changes"}
+          </Button>
+        </form>
+      ) : (
         <div className="mb-4 text-yellow-600 flex items-center">
           <AlertCircle size={20} className="mr-2" />
-          <span>You must be logged in to make changes.</span>
+          <span>Please log in to view and edit your settings.</span>
         </div>
       )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Name Field */}
-        <div>
-          <label
-            htmlFor="name"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Full Name
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={settings.name}
-              onChange={handleInputChange}
-              className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-              disabled={!isLoggedIn || loading}
-              placeholder="Full Name"
-            />
-            <User
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-          </div>
-        </div>
-
-        {/* Email Field */}
-        <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Email Address
-          </label>
-          <div className="relative">
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={settings.email}
-              onChange={handleInputChange}
-              className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-              disabled={!isLoggedIn || loading}
-              placeholder="Email Address"
-            />
-            <Mail
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-          </div>
-        </div>
-
-        {/* Phone Field */}
-        <div>
-          <label
-            htmlFor="phone"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Phone Number
-          </label>
-          <div className="relative">
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              value={settings.phone}
-              onChange={handleInputChange}
-              className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-              disabled={!isLoggedIn || loading}
-              placeholder="Phone Number"
-            />
-            <Phone
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-          </div>
-        </div>
-
-        {/* Address Field */}
-        <div>
-          <label
-            htmlFor="address"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Address
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              id="address"
-              name="address"
-              value={settings.address}
-              onChange={handleInputChange}
-              className="pl-10 w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500"
-              disabled={!isLoggedIn || loading}
-              placeholder="Address"
-            />
-            <MapPin
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-          </div>
-        </div>
-
-        {/* Notifications Checkbox */}
-        <div className="flex items-center">
-          <input
-            type="checkbox"
-            id="notifications"
-            name="notifications"
-            checked={settings.notifications}
-            onChange={handleInputChange}
-            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-            disabled={!isLoggedIn || loading}
-          />
-          <label
-            htmlFor="notifications"
-            className="ml-2 block text-sm text-gray-700"
-          >
-            Receive email notifications
-          </label>
-        </div>
-
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          className={`w-full ${
-            !isLoggedIn || loading
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-green-500 hover:bg-green-600"
-          } text-white`}
-          disabled={!isLoggedIn || loading}
-        >
-          {loading ? (
-            <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Save className="w-4 h-4 mr-2" />
-          )}
-
-          {loading ? "Saving..." : "Save Changes"}
-        </Button>
-      </form>
     </div>
   );
 }
